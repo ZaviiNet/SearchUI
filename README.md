@@ -33,6 +33,8 @@ SearchUI/
 └── frontend/
     └── index.html               # Main frontend user interface
 
+```
+
 🛠️ Prerequisites
 Python 3.8+
 
@@ -40,46 +42,60 @@ A message broker for Celery (e.g., Redis or RabbitMQ)
 
 (Optional) Vector database backend depending on your vector_index.py setup
 
-⚙️ Installation & Setup
-Clone the repository:
+# ⚙️ Installation & Setup
+## Clone the repository:
 
 Bash
+```
 git clone <your-repo-url>
 cd SearchUI
 Set up the Python backend:
 Navigate to the backend directory and install the required dependencies.
+```
 
 Bash
+```
 cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
-Configure the environment:
-Review settings.py and vault.py to configure your environment variables, API keys, and database connections.
+```
 
-Run the Celery Worker:
+# Configure the environment:
+## Review settings.py and vault.py to configure your environment variables, API keys, and database connections.
+
+## Run the Celery Worker:
 In a new terminal instance, start the Celery worker to handle background tasks.
 
 Bash
+```
 cd backend
 celery -A celery_app worker --loglevel=info
 Start the Backend Server:
 Run your main application (assuming a standard ASGI/WSGI setup in main.py).
+```
 
 Bash
+
+```
 python main.py
-Launch the Frontend:
-Serve the frontend/index.html file using a simple HTTP server or open it directly in your browser.
+```
+# Launch the Frontend:
+## Serve the frontend/index.html file using a simple HTTP server or open it directly in your browser.
 
 Bash
+```
 cd ../frontend
 python -m http.server 8000
-Navigate to http://localhost:8000 in your web browser.
+```
+## Navigate to http://localhost:8000 in your web browser.
 
-🧪 Testing
-The project includes an extensive test suite broken down into phases. Run the tests from the backend directory:
+# 🧪 Testing
+## The project includes an extensive test suite broken down into phases. Run the tests from the backend directory:
 
 Bash
+```
 pytest test_integration.py test_phase2.py test_phase3.py test_phase4.py test_ws.py
-🧩 Creating Plugins
-To add a new search plugin, create a new Python file in the backend/plugins/ directory following the structure of example_plugin.py. The plugins_loader.py will automatically detect and integrate it into the search executor.
+```
+# 🧩 Creating Plugins
+## To add a new search plugin, create a new Python file in the backend/plugins/ directory following the structure of example_plugin.py. The plugins_loader.py will automatically detect and integrate it into the search executor.

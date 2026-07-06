@@ -1,0 +1,2981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SearchUI - OSINT Workflow Editor</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- LiteGraph CSS -->
+    <link rel="stylesheet" type="text/css" href="https://tamats.com/projects/litegraph/css/litegraph.css">
+    <script type="text/javascript" src="https://tamats.com/projects/litegraph/build/litegraph.js"></script>
+    <style>
+        :root {
+            --bg-base: #09090b;
+            --bg-surface: #18181b;
+            --bg-element: #27272a;
+            --border-color: #3f3f46;
+            --text-primary: #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --accent-primary: #10b981;
+            --accent-hover: #059669;
+            --accent-glow: rgba(16, 185, 129, 0.2);
+            --font-sans: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--bg-base);
+            font-family: var(--font-sans);
+            display: flex;
+            color: var(--text-primary);
+        }
+
+        /* --- Sidebar Styles --- */
+        .sidebar {
+            position: relative;
+            width: 60px;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border-color);
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 4px 0 25px rgba(0, 0, 0, 0.5);
+            height: 100vh;
+        }
+        .sidebar.expanded {
+            width: 300px;
+        }
+        .sidebar-top {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .sidebar-bottom {
+            flex-shrink: 0;
+            border-top: 1px solid var(--border-color);
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .nav-item {
+            padding: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            user-select: none;
+            transition: all 0.2s ease;
+        }
+        .nav-item:hover, .nav-item.active {
+            background: var(--bg-element);
+            color: var(--text-primary);
+        }
+        .nav-item .icon {
+            font-size: 20px;
+            width: 28px;
+            text-align: center;
+            margin-right: 14px;
+        }
+        .nav-item .label {
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .sidebar.expanded .nav-item .label {
+            opacity: 1;
+        }
+
+        /* --- Node List Styles --- */
+        .nodes-container {
+            display: none;
+            padding: 15px;
+            overflow-y: auto;
+            flex-grow: 1;
+            flex-shrink: 1;
+            min-height: 0;
+            background: rgba(0,0,0,0.15);
+        }
+        .sidebar.expanded .nodes-container.visible {
+            display: block;
+        }
+        .node-category {
+            color: var(--text-secondary);
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+        }
+        .node-category:first-child {
+            margin-top: 5px;
+        }
+        .node-item {
+            background: var(--bg-element);
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-primary);
+            border-left: 4px solid var(--border-color);
+            transition: all 0.2s ease;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .node-item:hover {
+            background: var(--accent-primary);
+            border-left-color: #81c784;
+            transform: translateX(4px);
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+        .node-item::after {
+            content: "+";
+            font-weight: bold;
+            opacity: 0.5;
+        }
+
+        /* --- Canvas & UI Panel --- */
+        .canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background-color: var(--bg-base);
+            display: flex;
+            flex-direction: column;
+        }
+        .canvas-workspace {
+            flex: 1 1 0;
+            position: relative;
+            width: 100%;
+            min-height: 0;
+            overflow: hidden;
+        }
+        #graphcanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* --- Tab Navigation Bar --- */
+        .tab-bar {
+            display: flex;
+            align-items: center;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 10px;
+            height: 45px;
+            user-select: none;
+            overflow-x: auto;
+            flex-shrink: 0;
+        }
+        .tab-item {
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            height: 100%;
+            border-right: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+            gap: 8px;
+        }
+        .tab-item:hover {
+            background: var(--bg-element);
+            color: var(--text-primary);
+        }
+        .tab-item.active {
+            background: var(--bg-base);
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        .tab-item.active::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent-primary);
+        }
+        .tab-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
+        }
+        .tab-close {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            font-size: 10px;
+            line-height: 1;
+            transition: background 0.15s;
+        }
+        .tab-close:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        .btn-add-tab {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-left: 8px;
+            font-size: 16px;
+            border: 1px dashed var(--border-color);
+        }
+        .btn-add-tab:hover {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .ui-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(24, 24, 27, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            color: var(--text-primary);
+            z-index: 10;
+            width: 320px;
+            transition: all 0.3s ease;
+        }
+        
+        .ui-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .ui-panel-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: var(--text-primary);
+        }
+
+        button.btn-execute {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--accent-primary) 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px var(--accent-glow);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+        button.btn-execute:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(16, 185, 129, 0.4);
+        }
+        button.btn-execute:active {
+            transform: translateY(0);
+        }
+        
+        .result-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        #result-box {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            border-radius: 8px;
+            min-height: 100px;
+            max-height: 350px;
+            word-wrap: break-word;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            overflow-y: auto;
+            color: #34d399;
+        }
+        
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        /* --- Secrets Vault Panel Styles --- */
+        .vault-container {
+            display: none;
+            padding: 15px;
+            overflow-y: auto;
+            flex-grow: 1;
+            flex-shrink: 1;
+            min-height: 0;
+            background: rgba(0,0,0,0.15);
+        }
+        .vault-container.visible {
+            display: block;
+        }
+        .vault-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            color: var(--text-primary);
+        }
+        .vault-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.03);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        .vault-form label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .vault-form input {
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 13px;
+        }
+        .vault-form button {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .vault-form button:hover {
+            background: var(--accent-hover);
+        }
+        .vault-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-element);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            border: 1px solid var(--border-color);
+        }
+        .vault-item-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .vault-item-mask {
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 12px;
+        }
+
+        /* --- Settings Panel Styles --- */
+        .settings-container {
+            display: none;
+            padding: 15px;
+            overflow-y: auto;
+            flex-grow: 1;
+            flex-shrink: 1;
+            min-height: 0;
+            background: rgba(0,0,0,0.15);
+        }
+        .settings-container.visible {
+            display: block;
+        }
+        .settings-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            color: var(--text-primary);
+        }
+        .settings-subtitle {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 14px;
+        }
+        .provider-pill-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+        .provider-pill {
+            padding: 5px 10px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.15s;
+            background: var(--bg-element);
+            white-space: nowrap;
+        }
+        .provider-pill:hover, .provider-pill.selected {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+            background: rgba(16,185,129,0.1);
+        }
+        .settings-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: rgba(255,255,255,0.03);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 16px;
+        }
+        .settings-form label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: -4px;
+        }
+        .settings-form input, .settings-form select {
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 7px 10px;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 12px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .settings-form input:focus, .settings-form select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+        .settings-notes {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-top: -4px;
+        }
+        .settings-btn-row {
+            display: flex;
+            gap: 8px;
+        }
+        .settings-btn {
+            flex: 1;
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .settings-btn:hover { background: var(--accent-hover); }
+        .settings-btn.danger {
+            background: rgba(239,68,68,0.2);
+            color: #ef4444;
+        }
+        .settings-btn.danger:hover { background: rgba(239,68,68,0.3); }
+        .saved-provider-item {
+            background: var(--bg-element);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        .saved-provider-item:hover { border-color: var(--accent-primary); }
+        .saved-provider-item.active-provider {
+            border-color: var(--accent-primary);
+            background: rgba(16,185,129,0.08);
+        }
+        .saved-provider-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+        .saved-provider-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+            font-family: var(--font-mono);
+        }
+        .active-badge {
+            display: inline-block;
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            background: rgba(16,185,129,0.2);
+            color: var(--accent-primary);
+            font-weight: 700;
+            margin-left: 6px;
+        }
+
+        /* ── Subgraph Editor Overlay ─────────────────────────────── */
+        .subgraph-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            background: #0d0d10;
+        }
+        .subgraph-overlay.open { display: flex; }
+        .subgraph-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 20px;
+            height: 52px;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            user-select: none;
+        }
+        .subgraph-breadcrumb {
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+        }
+        .subgraph-breadcrumb strong { color: var(--text-primary); }
+        .subgraph-breadcrumb .sep { opacity: 0.4; }
+        .subgraph-node-pill {
+            background: rgba(30,58,95,0.6);
+            border: 1px solid #1e3a5f;
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #7dd3fc;
+        }
+        .subgraph-btn {
+            padding: 7px 16px;
+            border-radius: 7px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.15s;
+        }
+        .subgraph-btn.save {
+            background: linear-gradient(135deg, var(--accent-primary), #059669);
+            color: white;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+        .subgraph-btn.save:hover { transform: translateY(-1px); box-shadow: 0 4px 12px var(--accent-glow); }
+        .subgraph-btn.cancel {
+            background: var(--bg-element);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+        .subgraph-btn.cancel:hover { color: var(--text-primary); }
+        .subgraph-workspace {
+            flex: 1 1 0;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+        }
+        .subgraph-sidebar {
+            width: 220px;
+            flex-shrink: 0;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 12px;
+        }
+        .subgraph-sidebar-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            margin-top: 6px;
+        }
+        .subgraph-node-item {
+            background: var(--bg-element);
+            border: 1px solid var(--border-color);
+            border-left: 3px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text-primary);
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .subgraph-node-item:hover {
+            transform: translateX(3px);
+            border-left-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+        .subgraph-canvas-area {
+            flex: 1 1 0;
+            position: relative;
+            overflow: hidden;
+        }
+        #subgraph-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .subgraph-hint {
+            position: absolute;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(6px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 5px 14px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-top">
+            <div class="nav-item active" id="toggle-nodes" title="Nodes Library">
+                <span class="icon">🗂️</span>
+                <span class="label">Nodes Library</span>
+            </div>
+            <div class="nav-item" id="toggle-vault" title="Secrets Vault">
+                <span class="icon">🔑</span>
+                <span class="label">Secrets Vault</span>
+            </div>
+
+            <!-- Dynamically populated list of nodes -->
+            <div id="nodes-container" class="nodes-container"></div>
+
+            <!-- Secrets Vault Configuration Panel -->
+            <div id="vault-container" class="vault-container">
+                <h3 class="vault-title">Secrets Vault</h3>
+                <div class="vault-form">
+                    <label for="secretService">Service Name</label>
+                    <input type="text" id="secretService" placeholder="e.g. GraphQL, SerpApi" value="GraphQL">
+                    
+                    <label for="secretValue">Credential/API Key</label>
+                    <input type="password" id="secretValue" placeholder="Paste key here...">
+                    
+                    <button id="saveKeyBtn">Save Secret</button>
+                </div>
+                <h4 style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--text-secondary); margin-bottom:10px;">Stored Secrets</h4>
+                <div id="vault-list"></div>
+            </div>
+            <!-- Settings Panel -->
+            <div id="settings-container" class="settings-container"></div>
+        </div>
+
+        <div class="sidebar-bottom">
+            <div class="nav-item" id="toggle-settings" title="Settings">
+                <span class="icon">⚙️</span>
+                <span class="label">Settings</span>
+            </div>
+            <div class="nav-item" title="Console">
+                <span class="icon">🖥️</span>
+                <span class="label">Console</span>
+            </div>
+            <div class="nav-item" title="About">
+                <span class="icon">ℹ️</span>
+                <span class="label">About</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subgraph Editor Overlay -->
+    <div id="subgraph-overlay" class="subgraph-overlay">
+        <div class="subgraph-header">
+            <div class="subgraph-breadcrumb">
+                <span>Main Canvas</span>
+                <span class="sep">›</span>
+                <span class="subgraph-node-pill" id="subgraph-breadcrumb-name">Custom API</span>
+            </div>
+            <button class="subgraph-btn cancel" id="subgraph-cancel-btn">✕ Cancel</button>
+            <button class="subgraph-btn save" id="subgraph-save-btn">✓ Save &amp; Close</button>
+        </div>
+        <div class="subgraph-workspace">
+            <div class="subgraph-sidebar" id="subgraph-sidebar">
+                <div class="subgraph-sidebar-title">Subgraph Nodes</div>
+            </div>
+            <div class="subgraph-canvas-area">
+                <canvas id="subgraph-canvas"></canvas>
+                <div class="subgraph-hint">Double-click canvas to add nodes · Drag to connect · Right-click for menu</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Canvas Area -->
+    <div class="canvas-container">
+        <!-- Top Tab Navigation Bar -->
+        <div id="tab-bar" class="tab-bar"></div>
+        
+        <div class="canvas-workspace">
+            <div class="ui-panel">
+                <div class="ui-panel-header">
+                    <h3 class="ui-panel-title">SearchUI Controller</h3>
+                    <span style="font-size: 11px; padding: 2px 6px; background: rgba(16,185,129,0.15); color: var(--accent-primary); border-radius: 20px; font-weight: 600;">Active</span>
+                </div>
+                <button id="executeBtn" class="btn-execute">
+                    <span>⚡</span> Execute Workflow
+                </button>
+                <div class="result-title">Execution Console:</div>
+                <div id="result-box">Waiting for execution...</div>
+            </div>
+            <canvas id="graphcanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // --- Configure LiteGraph aesthetics ---
+        LiteGraph.NODE_DEFAULT_BGCOLOR = "#18181b";
+        LiteGraph.NODE_DEFAULT_COLOR = "#27272a";
+        LiteGraph.NODE_DEFAULT_BOXCOLOR = "#3f3f46";
+        LiteGraph.NODE_TEXT_COLOR = "#f4f4f5";
+        LiteGraph.NODE_SELECTED_TITLE_COLOR = "#ffffff";
+        LiteGraph.release_link_on_empty_shows_menu = true;
+        
+        // Custom link styling
+        var graph = new LGraph();
+        var canvas = new LGraphCanvas("#graphcanvas", graph);
+        canvas.background_image = null; // Clear standard grid image
+        
+        // Link type colors for OSINT semantics
+        LGraphCanvas.link_type_colors = {
+            "image": "#10b981",          // Green
+            "video": "#3b82f6",          // Blue
+            "hash": "#a855f7",           // Purple
+            "search_results": "#f59e0b", // Amber
+            "string": "#ec4899"          // Pink
+        };
+
+        function resizeCanvas() {
+            var rect = canvas.canvas.parentNode.getBoundingClientRect();
+            canvas.resize(rect.width, rect.height);
+        }
+        window.addEventListener("resize", resizeCanvas);
+        setTimeout(resizeCanvas, 100);
+
+        // --- Sidebar Logic ---
+        const sidebar = document.getElementById("sidebar");
+        const toggleNodesBtn = document.getElementById("toggle-nodes");
+        const toggleVaultBtn = document.getElementById("toggle-vault");
+        const nodesContainer = document.getElementById("nodes-container");
+        const vaultContainer = document.getElementById("vault-container");
+
+        function showPanel(panelType) {
+            // Clear all panels first
+            [toggleNodesBtn, toggleVaultBtn].forEach(b => b && b.classList.remove("active"));
+            nodesContainer.classList.remove("visible");
+            vaultContainer.classList.remove("visible");
+            const sc = document.getElementById("settings-container");
+            const tsb = document.getElementById("toggle-settings");
+            if (sc) sc.classList.remove("visible");
+            if (tsb) tsb.classList.remove("active");
+
+            if (panelType === "nodes") {
+                toggleNodesBtn.classList.add("active");
+                nodesContainer.classList.add("visible");
+                sidebar.classList.add("expanded");
+            } else if (panelType === "vault") {
+                toggleVaultBtn.classList.add("active");
+                vaultContainer.classList.add("visible");
+                sidebar.classList.add("expanded");
+                loadVaultKeys();
+            } else if (panelType === "settings") {
+                if (tsb) tsb.classList.add("active");
+                if (sc) sc.classList.add("visible");
+                sidebar.classList.add("expanded");
+                if (typeof buildSettingsUI === "function") buildSettingsUI();
+            }
+            setTimeout(resizeCanvas, 300);
+        }
+
+        toggleNodesBtn.addEventListener("click", () => {
+            if (sidebar.classList.contains("expanded") && nodesContainer.classList.contains("visible")) {
+                sidebar.classList.remove("expanded");
+                nodesContainer.classList.remove("visible");
+            } else { showPanel("nodes"); }
+            setTimeout(resizeCanvas, 300);
+        });
+
+        toggleVaultBtn.addEventListener("click", () => {
+            if (sidebar.classList.contains("expanded") && vaultContainer.classList.contains("visible")) {
+                sidebar.classList.remove("expanded");
+                vaultContainer.classList.remove("visible");
+            } else { showPanel("vault"); }
+            setTimeout(resizeCanvas, 300);
+        });
+
+        function loadVaultKeys() {
+            const vaultList = document.getElementById("vault-list");
+            vaultList.innerHTML = "<div style='color: var(--text-secondary); font-size:12px;'>Loading keys...</div>";
+            
+            fetch("/vault/list")
+            .then(res => res.json())
+            .then(data => {
+                vaultList.innerHTML = "";
+                if (data.status === "success" && data.keys) {
+                    if (data.keys.length === 0) {
+                        vaultList.innerHTML = "<div style='color: var(--text-secondary); font-size:12px;'>No keys configured yet.</div>";
+                    } else {
+                        data.keys.forEach(key => {
+                            const item = document.createElement("div");
+                            item.className = "vault-item";
+                            item.innerHTML = `
+                                <span class="vault-item-name">${key}</span>
+                                <span class="vault-item-mask">configured</span>
+                            `;
+                            vaultList.appendChild(item);
+                        });
+                    }
+                } else {
+                    vaultList.innerHTML = `<div style='color: #ef4444; font-size:12px;'>Error: ${data.message}</div>`;
+                }
+            })
+            .catch(err => {
+                vaultList.innerHTML = `<div style='color: #ef4444; font-size:12px;'>Load error: ${err}</div>`;
+            });
+        }
+
+        document.getElementById("saveKeyBtn").addEventListener("click", () => {
+            const service = document.getElementById("secretService").value.trim();
+            const value = document.getElementById("secretValue").value.trim();
+            
+            if (!service || !value) {
+                alert("Please specify both service name and key value.");
+                return;
+            }
+            
+            fetch("/vault/set", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ service, value })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    document.getElementById("secretValue").value = "";
+                    loadVaultKeys();
+                } else {
+                    alert("Failed to save secret: " + data.message);
+                }
+            })
+            .catch(err => alert("Error saving secret: " + err));
+        });
+
+        // --- Settings Panel Logic ---
+        const toggleSettingsBtn = document.getElementById("toggle-settings");
+        const settingsContainer = document.getElementById("settings-container");
+
+        let knownProviders = {};
+        let savedProviders = [];
+        let activeProviderId = null;
+        let selectedPresetId = null;
+
+        toggleSettingsBtn.addEventListener("click", () => {
+            if (sidebar.classList.contains("expanded") && settingsContainer.classList.contains("visible")) {
+                sidebar.classList.remove("expanded");
+                settingsContainer.classList.remove("visible");
+                toggleSettingsBtn.classList.remove("active");
+            } else {
+                showPanel("settings");
+            }
+            setTimeout(resizeCanvas, 300);
+        });
+
+        function buildSettingsUI() {
+            settingsContainer.innerHTML = `
+                <div class="settings-title">⚙️ LLM Providers</div>
+                <div class="settings-subtitle">Select a preset or add a custom endpoint for AI nodes.</div>
+                <div id="settings-status" style="font-size:11px;color:var(--text-secondary);margin-bottom:12px;">Loading…</div>
+
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-secondary);margin-bottom:8px;">Quick Presets</div>
+                <div id="provider-pills" class="provider-pill-row"></div>
+
+                <div class="settings-form" id="provider-form">
+                    <label>Provider Name / ID</label>
+                    <input id="sf-id" type="text" placeholder="e.g. my-openai" />
+                    <label>Display Name</label>
+                    <input id="sf-name" type="text" placeholder="e.g. OpenAI GPT-4o" />
+                    <label>Base URL</label>
+                    <input id="sf-url" type="text" placeholder="https://api.openai.com/v1" />
+                    <label>API Key <span style="font-weight:400;font-style:italic;">(leave blank for local)</span></label>
+                    <input id="sf-key" type="password" placeholder="sk-…" autocomplete="off" />
+                    <label>Default Model</label>
+                    <input id="sf-model" type="text" placeholder="e.g. gpt-4o-mini" />
+                    <label>API Style</label>
+                    <select id="sf-style">
+                        <option value="openai">OpenAI-compatible</option>
+                        <option value="ollama">Ollama</option>
+                        <option value="anthropic">Anthropic</option>
+                    </select>
+                    <div id="sf-notes" class="settings-notes"></div>
+                    <div class="settings-btn-row">
+                        <button class="settings-btn" id="sf-save">💾 Save Provider</button>
+                    </div>
+                </div>
+
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-secondary);margin-bottom:8px;">Saved Providers</div>
+                <div id="saved-providers-list">Loading…</div>
+            `;
+
+            // Load known presets and saved providers
+            Promise.all([
+                fetch("/settings/known-providers").then(r => r.json()),
+                fetch("/settings/providers").then(r => r.json())
+            ]).then(([known, saved]) => {
+                knownProviders = known.providers || {};
+                savedProviders = saved.providers || [];
+                activeProviderId = saved.active_provider || null;
+
+                // Render preset pills
+                const pillRow = document.getElementById("provider-pills");
+                pillRow.innerHTML = "";
+                for (const [pid, preset] of Object.entries(knownProviders)) {
+                    const pill = document.createElement("div");
+                    pill.className = "provider-pill";
+                    pill.textContent = preset.name;
+                    pill.dataset.pid = pid;
+                    pill.addEventListener("click", () => {
+                        document.querySelectorAll(".provider-pill").forEach(p => p.classList.remove("selected"));
+                        pill.classList.add("selected");
+                        selectedPresetId = pid;
+                        fillFormFromPreset(pid, preset);
+                    });
+                    pillRow.appendChild(pill);
+                }
+
+                renderSavedProviders();
+                updateStatusBar();
+
+            }).catch(err => {
+                document.getElementById("settings-status").textContent = "⚠️ Could not load providers: " + err;
+            });
+
+            // Save button
+            document.getElementById("sf-save").addEventListener("click", () => {
+                const pid = document.getElementById("sf-id").value.trim().replace(/\s+/g, "_");
+                const name = document.getElementById("sf-name").value.trim();
+                const url = document.getElementById("sf-url").value.trim();
+                const key = document.getElementById("sf-key").value.trim();
+                const model = document.getElementById("sf-model").value.trim();
+                const style = document.getElementById("sf-style").value;
+                if (!pid || !name || !url) {
+                    alert("Provider ID, Name, and Base URL are required.");
+                    return;
+                }
+                fetch(`/settings/providers/${encodeURIComponent(pid)}`, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({ name, base_url: url, api_key: key, model, api_style: style, notes: "" })
+                })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === "success") {
+                        fetch("/settings/providers").then(r => r.json()).then(data => {
+                            savedProviders = data.providers || [];
+                            activeProviderId = data.active_provider;
+                            renderSavedProviders();
+                        });
+                    } else {
+                        alert("Failed to save: " + d.message);
+                    }
+                });
+            });
+        }
+
+        function fillFormFromPreset(pid, preset) {
+            document.getElementById("sf-id").value = pid + "_" + Date.now().toString().slice(-4);
+            document.getElementById("sf-name").value = preset.name;
+            document.getElementById("sf-url").value = preset.base_url;
+            document.getElementById("sf-key").value = "";
+            document.getElementById("sf-model").value = preset.default_model || "";
+            document.getElementById("sf-style").value = preset.api_style || "openai";
+            document.getElementById("sf-notes").textContent = preset.notes || "";
+        }
+
+        function renderSavedProviders() {
+            const list = document.getElementById("saved-providers-list");
+            if (!list) return;
+            if (!savedProviders.length) {
+                list.innerHTML = "<div style='color:var(--text-secondary);font-size:12px;'>No providers saved yet. Pick a preset above.</div>";
+                return;
+            }
+            list.innerHTML = "";
+            savedProviders.forEach(p => {
+                const item = document.createElement("div");
+                const isActive = p.id === activeProviderId;
+                item.className = "saved-provider-item" + (isActive ? " active-provider" : "");
+                item.innerHTML = `
+                    <div class="saved-provider-name">
+                        ${p.name}
+                        ${isActive ? '<span class="active-badge">● ACTIVE</span>' : ""}
+                    </div>
+                    <div class="saved-provider-meta">${p.base_url} · ${p.model || p.default_model || "—"}</div>
+                    <div style="display:flex;gap:6px;margin-top:8px;">
+                        ${!isActive ? `<button class="settings-btn" style="font-size:11px;padding:5px;" onclick="activateProvider('${p.id}')">▶ Set Active</button>` : `<span style="font-size:11px;color:var(--accent-primary);font-weight:600;">✓ Currently Active</span>`}
+                        <button class="settings-btn danger" style="font-size:11px;padding:5px;flex:0 0 auto;" onclick="deleteProvider('${p.id}')">✕</button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function updateStatusBar() {
+            const bar = document.getElementById("settings-status");
+            if (!bar) return;
+            if (activeProviderId && savedProviders.length) {
+                const active = savedProviders.find(p => p.id === activeProviderId);
+                bar.innerHTML = active
+                    ? `<span style="color:var(--accent-primary);">● Active: <strong>${active.name}</strong> (${active.base_url})</span>`
+                    : `<span style="color:#f59e0b;">⚠ Active provider ID "${activeProviderId}" not found in saved list.</span>`;
+            } else {
+                bar.textContent = "No active provider. Nodes will fall back to local Ollama.";
+            }
+        }
+
+        window.activateProvider = function(pid) {
+            fetch("/settings/active", {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ provider_id: pid })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === "success") {
+                    activeProviderId = pid;
+                    renderSavedProviders();
+                    updateStatusBar();
+                }
+            });
+        };
+
+        window.deleteProvider = function(pid) {
+            if (!confirm(`Delete provider "${pid}"?`)) return;
+            fetch(`/settings/providers/${encodeURIComponent(pid)}`, { method: "DELETE" })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === "success") {
+                    savedProviders = savedProviders.filter(p => p.id !== pid);
+                    if (activeProviderId === pid) activeProviderId = null;
+                    renderSavedProviders();
+                    updateStatusBar();
+                }
+            });
+        };
+
+
+
+        // --- Generic Placeholder Node ---
+        function PlaceholderNode() {
+            if (this.onRegister) { this.onRegister(); }
+        }
+
+        // --- Nodes Implementation ---
+
+        // Clear all default registered node types to keep only OSINT / SearchUI custom nodes
+        if (typeof LiteGraph.clearRegisteredTypes === "function") {
+            LiteGraph.clearRegisteredTypes();
+        } else {
+            LiteGraph.registered_node_types = {};
+        }
+
+        // == 1. Input Nodes ==
+        function ImageInputNode() {
+            this.addOutput("Image", "image");
+            this.properties = { url: "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5", local_path: "", filename: "" };
+            this.size = [240, 90];
+            
+            this.addWidget("text", "URL", this.properties.url, (v) => { 
+                this.properties.url = v; 
+                this.properties.local_path = "";
+                this.properties.filename = "";
+            });
+            
+            this.addWidget("button", "Upload Image", "", () => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = "image/*";
+                input.onchange = () => {
+                    const file = input.files[0];
+                    if (!file) return;
+                    
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    
+                    fetch("/upload", {
+                        method: "POST",
+                        body: formData
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === "success") {
+                            this.properties.url = data.url;
+                            this.properties.local_path = data.local_path;
+                            this.properties.filename = data.filename;
+                            if (this.widgets && this.widgets[0]) {
+                                this.widgets[0].value = data.url;
+                            }
+                            this.setDirtyCanvas(true, true);
+                        } else {
+                            alert("Upload failed: " + data.message);
+                        }
+                    })
+                    .catch(err => alert("Upload error: " + err));
+                };
+                input.click();
+            });
+        }
+        ImageInputNode.title = "Image Input";
+        ImageInputNode.color = "#064e3b"; // dark emerald
+        ImageInputNode.prototype.onExecute = function() {
+            this.setOutputData(0, {
+                type: "image",
+                url: this.properties.url,
+                local_path: this.properties.local_path,
+                filename: this.properties.filename
+            });
+        };
+        LiteGraph.registerNodeType("input/image", ImageInputNode);
+
+        function VideoInputNode() {
+            this.addOutput("Video", "video");
+            this.properties = { url: "https://www.w3schools.com/html/mov_bbb.mp4", local_path: "", filename: "" };
+            this.size = [240, 90];
+            
+            this.addWidget("text", "URL", this.properties.url, (v) => { 
+                this.properties.url = v; 
+                this.properties.local_path = "";
+                this.properties.filename = "";
+            });
+            
+            this.addWidget("button", "Upload Video", "", () => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = "video/*";
+                input.onchange = () => {
+                    const file = input.files[0];
+                    if (!file) return;
+                    
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    
+                    fetch("/upload", {
+                        method: "POST",
+                        body: formData
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === "success") {
+                            this.properties.url = data.url;
+                            this.properties.local_path = data.local_path;
+                            this.properties.filename = data.filename;
+                            if (this.widgets && this.widgets[0]) {
+                                this.widgets[0].value = data.url;
+                            }
+                            this.setDirtyCanvas(true, true);
+                        } else {
+                            alert("Upload failed: " + data.message);
+                        }
+                    })
+                    .catch(err => alert("Upload error: " + err));
+                };
+                input.click();
+            });
+        }
+        VideoInputNode.title = "Video Input";
+        VideoInputNode.color = "#1e3a8a"; // dark blue
+        VideoInputNode.prototype.onExecute = function() {
+            this.setOutputData(0, {
+                type: "video",
+                url: this.properties.url,
+                local_path: this.properties.local_path,
+                filename: this.properties.filename
+            });
+        };
+        LiteGraph.registerNodeType("input/video", VideoInputNode);
+
+        function DocumentInputNode() {
+            this.addOutput("Document", "document");
+            this.properties = { url: "", local_path: "", filename: "" };
+            this.size = [240, 90];
+            
+            this.addWidget("text", "URL", this.properties.url, (v) => { 
+                this.properties.url = v; 
+                this.properties.local_path = "";
+                this.properties.filename = "";
+            });
+            
+            this.addWidget("button", "Upload Document", "", () => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = ".pdf,.txt,.doc,.docx";
+                input.onchange = () => {
+                    const file = input.files[0];
+                    if (!file) return;
+                    
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    
+                    fetch("/upload", {
+                        method: "POST",
+                        body: formData
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === "success") {
+                            this.properties.url = data.url;
+                            this.properties.local_path = data.local_path;
+                            this.properties.filename = data.filename;
+                            if (this.widgets && this.widgets[0]) {
+                                this.widgets[0].value = data.url;
+                            }
+                            this.setDirtyCanvas(true, true);
+                        } else {
+                            alert("Upload failed: " + data.message);
+                        }
+                    })
+                    .catch(err => alert("Upload error: " + err));
+                };
+                input.click();
+            });
+        }
+        DocumentInputNode.title = "Document Input";
+        DocumentInputNode.color = "#1e3a8a";
+        DocumentInputNode.prototype.onExecute = function() {
+            this.setOutputData(0, {
+                type: "document",
+                url: this.properties.url,
+                local_path: this.properties.local_path,
+                filename: this.properties.filename
+            });
+        };
+        LiteGraph.registerNodeType("input/document", DocumentInputNode);
+
+        function FolderInputNode() {
+            this.addOutput("Folder", "folder");
+            this.properties = { path: "/home/jack/PycharmProjects/SearchUI" };
+            this.size = [240, 60];
+            this.addWidget("text", "Path", this.properties.path, (v) => { this.properties.path = v; });
+        }
+        FolderInputNode.title = "Folder Input";
+        FolderInputNode.color = "#1e3a8a";
+        FolderInputNode.prototype.onExecute = function() {
+            this.setOutputData(0, {
+                type: "folder",
+                path: this.properties.path
+            });
+        };
+        LiteGraph.registerNodeType("input/folder", FolderInputNode);
+
+        // == 2. Processing Nodes ==
+        function HashNode() {
+            this.addInput("Media", 0);
+            this.addOutput("Hash", "hash");
+            this.properties = { algorithm: "md5", hash_value: "" };
+            this.size = [200, 80];
+            
+            this.addWidget("combo", "Algorithm", this.properties.algorithm, (v) => { 
+                this.properties.algorithm = v;
+                this.title = "Hash (" + v.toUpperCase() + ")";
+            }, { values: ["md5", "sha256"] });
+        }
+        HashNode.title = "Generate Hash (MD5)";
+        HashNode.color = "#581c87"; // dark purple
+        HashNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.properties.hash_value = outputs[0].value;
+            }
+        };
+        HashNode.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
+            if (this.properties.hash_value) {
+                ctx.fillStyle = "#a1a1aa";
+                ctx.font = "10px monospace";
+                ctx.fillText("Val: " + this.properties.hash_value.substring(0, 20) + "...", 12, 68);
+            }
+        };
+        LiteGraph.registerNodeType("process/hash", HashNode);
+
+        function OpenCVKeyframeNode() {
+            this.addInput("Video", "video");
+            this.addOutput("Frame", "image");
+            this.properties = { frame_index: -1 };
+            this.size = [220, 80];
+            this.addWidget("number", "Frame Index", this.properties.frame_index, (v) => { 
+                this.properties.frame_index = Math.floor(v); 
+            }, { precision: 0, min: -1 });
+        }
+        OpenCVKeyframeNode.title = "OpenCV: Keyframe Extractor";
+        OpenCVKeyframeNode.color = "#581c87";
+        OpenCVKeyframeNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        OpenCVKeyframeNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            } else {
+                this.setOutputData(0, { type: "image", url: "", local_path: "" });
+            }
+        };
+        LiteGraph.registerNodeType("process/opencv_keyframe", OpenCVKeyframeNode);
+
+        function MetadataNode() {
+            this.addInput("Media", 0);
+            this.addOutput("Meta", "metadata");
+            this.size = [280, 160];
+            this.properties = { info: "" };
+        }
+        MetadataNode.title = "Metadata Extractor";
+        MetadataNode.color = "#581c87";
+        MetadataNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                let text = JSON.stringify(outputs[0].metadata, null, 2);
+                this.properties.info = text;
+            }
+        };
+        MetadataNode.prototype.onExecute = function() {
+            if (this.properties.info) {
+                this.setOutputData(0, JSON.parse(this.properties.info));
+            }
+        };
+        MetadataNode.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
+            ctx.fillStyle = "#09090b";
+            ctx.fillRect(10, 25, this.size[0] - 20, this.size[1] - 35);
+            ctx.fillStyle = "#a1a1aa";
+            ctx.font = "10px var(--font-mono)";
+            
+            const text = this.properties.info || "No Metadata Loaded";
+            const lines = text.split("\n");
+            let y = 40;
+            for (let i = 0; i < lines.length; i++) {
+                if (y > this.size[1] - 15) break;
+                ctx.fillText(lines[i], 16, y);
+                y += 13;
+            }
+        };
+        LiteGraph.registerNodeType("process/metadata", MetadataNode);
+
+        function OCRNode() {
+            this.addInput("Image", "image");
+            this.addOutput("Text", "string");
+            this.size = [260, 100];
+            this.properties = { text: "" };
+        }
+        OCRNode.title = "OCR: Extract Text";
+        OCRNode.color = "#581c87";
+        OCRNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.properties.text = outputs[0];
+            }
+        };
+        OCRNode.prototype.onExecute = function() {
+            this.setOutputData(0, this.properties.text);
+        };
+        OCRNode.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
+            ctx.fillStyle = "#09090b";
+            ctx.fillRect(10, 25, this.size[0] - 20, this.size[1] - 35);
+            ctx.fillStyle = "#34d399";
+            ctx.font = "11px var(--font-mono)";
+            
+            const text = this.properties.text || "No OCR text extracted";
+            const lines = text.split("\n");
+            let y = 40;
+            for (let i = 0; i < lines.length; i++) {
+                if (y > this.size[1] - 15) break;
+                ctx.fillText(lines[i], 16, y);
+                y += 13;
+            }
+        };
+        LiteGraph.registerNodeType("process/ocr", OCRNode);
+
+        function TranscribeAudioNode() {
+            this.addInput("Video", "video");
+            this.addOutput("Text", "string");
+            this.size = [220, 60];
+        }
+        TranscribeAudioNode.title = "Whisper: Transcribe Audio";
+        TranscribeAudioNode.color = "#581c87";
+        LiteGraph.registerNodeType("process/transcribe_audio", TranscribeAudioNode);
+
+        // ── Vision Describe ──────────────────────────────────────────────────
+        function VisionDescribeNode() {
+            this.addInput("Image", "image");
+            this.addOutput("Description (text)", "string");
+            this.addOutput("Structured Output", 0);
+            this.properties = {
+                prompt: "Describe this image in detail. Focus on: subjects, art style, setting, colours, any text visible, and distinctive features useful for reverse image searching.",
+                model: "",
+                detail: "auto"
+            };
+            this.size = [260, 140];
+            this.color = "#1e1b4b";
+            this.addWidget("text",  "Prompt",        this.properties.prompt,  (v) => { this.properties.prompt = v; });
+            this.addWidget("text",  "Model override", this.properties.model,   (v) => { this.properties.model = v; });
+            this.addWidget("combo", "Detail level",  this.properties.detail,  (v) => { this.properties.detail = v; },
+                           { values: ["auto", "low", "high"] });
+            this.backend_output = null;
+            this.method_label = "";
+        }
+        VisionDescribeNode.title = "AI: Vision Describe";
+        VisionDescribeNode.prototype.onDrawForeground = function(ctx) {
+            if (!this.method_label) return;
+            ctx.save();
+            ctx.fillStyle = "rgba(99,102,241,0.25)";
+            ctx.beginPath();
+            ctx.roundRect(8, this.size[1] - 22, this.size[0] - 16, 16, 4);
+            ctx.fill();
+            ctx.fillStyle = "#a5b4fc";
+            ctx.font = "10px var(--font-mono, monospace)";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("via " + this.method_label, this.size[0] / 2, this.size[1] - 14);
+            ctx.restore();
+        };
+        VisionDescribeNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs) {
+                if (outputs[0]) this.backend_output = outputs[0];
+                if (outputs[1] && outputs[1].method) this.method_label = outputs[1].method;
+                this.setDirtyCanvas(true);
+            }
+        };
+        VisionDescribeNode.prototype.onExecute = function() {
+            if (this.backend_output !== null) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("process/vision_describe", VisionDescribeNode);
+
+
+
+        function CatboxUploadNode() {
+            this.addInput("File", 0);
+            this.addOutput("URL", "string");
+            this.properties = { upload_type: "Litterbox (Temporary)", expiry: "24h" };
+            this.size = [220, 90];
+            this.color = "#581c87";
+            this.addWidget("combo", "Type", this.properties.upload_type, (v) => { this.properties.upload_type = v; }, { values: ["Litterbox (Temporary)", "Catbox (Permanent)"] });
+            this.addWidget("combo", "Expiry (Litterbox)", this.properties.expiry, (v) => { this.properties.expiry = v; }, { values: ["1h", "12h", "24h", "72h"] });
+        }
+        CatboxUploadNode.title = "Upload: Catbox / Litterbox";
+        CatboxUploadNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        CatboxUploadNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("process/catbox", CatboxUploadNode);
+
+        function AISynthesisNode() {
+            this.addInput("Results", "search_results");
+            this.addOutput("Summary", "string");
+            this.properties = { model: "llama3", prompt_suffix: "" };
+            this.size = [220, 95];
+            this.color = "#581c87";
+            this.addWidget("combo", "Model", this.properties.model, (v) => { this.properties.model = v; }, { values: ["llama3", "mistral", "codellama", "phi3"] });
+            this.addWidget("text", "Instructions", this.properties.prompt_suffix, (v) => { this.properties.prompt_suffix = v; });
+        }
+        AISynthesisNode.title = "AI Synthesis / Report";
+        AISynthesisNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        AISynthesisNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("process/synthesis", AISynthesisNode);
+
+        // == 3. Search Nodes ==
+        function MockSearchNode() {
+            this.addInput("Query", 0);
+            this.addOutput("Results", "search_results");
+            this.properties = { intent: "source" };
+            this.size = [220, 80];
+            this.color = "#7c2d12"; // dark orange/red
+            this.addWidget("combo", "Intent", this.properties.intent, (v) => { this.properties.intent = v; }, { values: ["source", "exact", "similar", "linked"] });
+        }
+        MockSearchNode.title = "Mock Search Engine";
+        MockSearchNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        MockSearchNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("search/mock", MockSearchNode);
+
+        function DDGSearchNode() {
+            this.addInput("Query", 0);
+            this.addOutput("Results", "search_results");
+            this.size = [200, 60];
+            this.color = "#7c2d12";
+        }
+        DDGSearchNode.title = "DuckDuckGo Search";
+        DDGSearchNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        DDGSearchNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("search/ddg", DDGSearchNode);
+
+        function WebScraperNode() {
+            this.addInput("URL", 0);
+            this.addOutput("Text", "string");
+            this.size = [200, 60];
+            this.color = "#7c2d12";
+        }
+        WebScraperNode.title = "Web Scraper";
+        WebScraperNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        WebScraperNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("search/scraper", WebScraperNode);
+
+        function TinEyeSearchNode() {
+            this.addInput("Query", 0);
+            this.addInput("Keywords", "string");
+            this.addOutput("Results", "search_results");
+            this.properties = { intent: "source" };
+            this.size = [220, 95];
+            this.color = "#7c2d12";
+            this.addWidget("combo", "Intent", this.properties.intent, (v) => { this.properties.intent = v; }, { values: ["source", "exact", "similar", "linked"] });
+        }
+        TinEyeSearchNode.title = "Search: TinEye";
+        TinEyeSearchNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        TinEyeSearchNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("search/tineye", TinEyeSearchNode);
+
+        function GoogleLensSearchNode() {
+            this.addInput("Query", 0);
+            this.addInput("Keywords", "string");
+            this.addOutput("Results", "search_results");
+            this.properties = { intent: "source" };
+            this.size = [220, 95];
+            this.color = "#7c2d12";
+            this.addWidget("combo", "Intent", this.properties.intent, (v) => { this.properties.intent = v; }, { values: ["source", "exact", "similar", "linked"] });
+        }
+        GoogleLensSearchNode.title = "Search: Google Lens";
+        GoogleLensSearchNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        GoogleLensSearchNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("search/google_lens", GoogleLensSearchNode);
+
+        function GraphQLNode() {
+            this.addInput("Query", 0);
+            this.addOutput("Results", 0);
+            this.properties = { 
+                endpoint: "https://countries.trevorblades.com/graphql", 
+                query: "query { countries { name code } }" 
+            };
+            this.size = [260, 110];
+            this.color = "#7c2d12";
+            
+            this.addWidget("text", "Endpoint", this.properties.endpoint, (v) => { this.properties.endpoint = v; });
+            this.addWidget("text", "Query", this.properties.query, (v) => { this.properties.query = v; });
+        }
+        GraphQLNode.title = "GraphQL Query";
+        GraphQLNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        GraphQLNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("search/graphql", GraphQLNode);
+
+        function AnySearchNode() {
+            this.addInput("Query", 0);
+            this.addOutput("Results", "search_results");
+            this.properties = { max_results: 10, tag: "", intent: "source" };
+            this.size = [220, 110];
+            this.color = "#7c2d12";
+            
+            this.addWidget("number", "Max Results", this.properties.max_results, (v) => { this.properties.max_results = Math.floor(v); }, { precision: 0, min: 1, max: 20 });
+            this.addWidget("text", "Tag Filter", this.properties.tag, (v) => { this.properties.tag = v; });
+            this.addWidget("combo", "Intent", this.properties.intent, (v) => { this.properties.intent = v; }, { values: ["source", "exact", "similar", "linked"] });
+        }
+        AnySearchNode.title = "AnySearch AI";
+        AnySearchNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        AnySearchNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("search/anysearch", AnySearchNode);
+
+        // == 4. Logic & Confidence Nodes ==
+        function FallbackNode() {
+            this.addInput("A", 0);
+            this.addInput("B", 0);
+            this.addOutput("Out", 0);
+            this.size = [140, 60];
+            this.color = "#713f12"; // dark brown
+        }
+        FallbackNode.title = "Fallback Logic";
+        FallbackNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        FallbackNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("logic/fallback", FallbackNode);
+
+        function MatchConfidenceNode() {
+            this.addInput("Query", 0);
+            this.addInput("Text", 0);
+            this.addOutput("Score", "confidence");
+            this.size = [220, 90];
+            this.properties = { score: "" };
+        }
+        MatchConfidenceNode.title = "Match Confidence";
+        MatchConfidenceNode.color = "#581c87";
+        MatchConfidenceNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.properties.score = outputs[0].score;
+            }
+        };
+        MatchConfidenceNode.prototype.onExecute = function() {
+            this.setOutputData(0, this.properties.score);
+        };
+        MatchConfidenceNode.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
+            if (this.properties.score) {
+                ctx.fillStyle = "#34d399";
+                ctx.font = "bold 14px var(--font-sans)";
+                ctx.textAlign = "center";
+                ctx.fillText(this.properties.score + " Match", this.size[0] / 2, 60);
+            }
+        };
+        LiteGraph.registerNodeType("process/confidence", MatchConfidenceNode);
+
+        function ExportNode() {
+            this.addInput("Data", 0);
+            this.addOutput("Result", "export_result");
+            this.properties = { filename: "export.md" };
+            this.size = [240, 80];
+            
+            this.addWidget("text", "Filename", this.properties.filename, (v) => { this.properties.filename = v; });
+        }
+        ExportNode.title = "Export File";
+        ExportNode.color = "#450a0a";
+        ExportNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        ExportNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("output/export", ExportNode);
+
+        // == 4.1 AI & NLP Nodes ==
+        function LLMQueryNode() {
+            this.addInput("Prompt", 0);
+            this.addOutput("Response", "string");
+            this.properties = { model: "llama3", system_prompt: "You are a helpful OSINT assistant." };
+            this.size = [260, 110];
+            
+            this.addWidget("text", "Model", this.properties.model, (v) => { this.properties.model = v; });
+            this.addWidget("text", "System Prompt", this.properties.system_prompt, (v) => { this.properties.system_prompt = v; });
+        }
+        LLMQueryNode.title = "Local LLM";
+        LLMQueryNode.color = "#581c87";
+        LLMQueryNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        LLMQueryNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("process/llm", LLMQueryNode);
+
+        function SummarizerNode() {
+            this.addInput("Text", 0);
+            this.addOutput("Summary", "string");
+            this.properties = { max_sentences: 3 };
+            this.size = [200, 80];
+            
+            this.addWidget("number", "Max Sentences", this.properties.max_sentences, (v) => { this.properties.max_sentences = Math.floor(v); }, { precision: 0, min: 1 });
+        }
+        SummarizerNode.title = "Text Summarizer";
+        SummarizerNode.color = "#581c87";
+        SummarizerNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        SummarizerNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("process/summarize", SummarizerNode);
+
+        function VectorDBSearchNode() {
+            this.addInput("Docs", 0);
+            this.addOutput("Results", "vector_search_results");
+            this.properties = { query: "", top_k: 3 };
+            this.size = [260, 110];
+            
+            this.addWidget("text", "Query", this.properties.query, (v) => { this.properties.query = v; });
+            this.addWidget("number", "Top K", this.properties.top_k, (v) => { this.properties.top_k = Math.floor(v); }, { precision: 0, min: 1 });
+        }
+        VectorDBSearchNode.title = "Vector DB Search";
+        VectorDBSearchNode.color = "#7c2d12";
+        VectorDBSearchNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        VectorDBSearchNode.prototype.onExecute = function() {
+            if (this.backend_output) {
+                this.setOutputData(0, this.backend_output);
+            }
+        };
+        LiteGraph.registerNodeType("search/vector_db", VectorDBSearchNode);
+
+        // == 4.2 Entity & Chronology Visualizers ==
+        function RelationshipGraphNode() {
+            this.addInput("Text", 0);
+            this.size = [350, 240];
+            this.properties = { graph_data: null };
+        }
+        RelationshipGraphNode.title = "Relationship Graph";
+        RelationshipGraphNode.color = "#18181b";
+        RelationshipGraphNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.properties.graph_data = outputs[0];
+            }
+        };
+        RelationshipGraphNode.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
+            
+            ctx.fillStyle = "#09090b";
+            ctx.fillRect(10, 25, this.size[0] - 20, this.size[1] - 35);
+            
+            const data = this.properties.graph_data;
+            if (!data || !data.nodes || data.nodes.length === 0) {
+                ctx.fillStyle = "#a1a1aa";
+                ctx.font = "12px var(--font-sans)";
+                ctx.textAlign = "center";
+                ctx.fillText("No relationships extracted", this.size[0] / 2, this.size[1] / 2 + 10);
+                return;
+            }
+            
+            const centerX = this.size[0] / 2;
+            const centerY = this.size[1] / 2 + 10;
+            const radius = Math.min(this.size[0], this.size[1]) / 3;
+            
+            const nodeCoords = {};
+            const mainNode = data.nodes.find(n => n.type === "source") || data.nodes[0];
+            nodeCoords[mainNode.id] = { x: centerX, y: centerY };
+            
+            const outerNodes = data.nodes.filter(n => n.id !== mainNode.id);
+            outerNodes.forEach((n, idx) => {
+                const angle = (idx / outerNodes.length) * 2 * Math.PI;
+                nodeCoords[n.id] = {
+                    x: centerX + radius * Math.cos(angle),
+                    y: centerY + radius * Math.sin(angle)
+                };
+            });
+            
+            ctx.strokeStyle = "rgba(161, 161, 170, 0.4)";
+            ctx.lineWidth = 1.5;
+            data.edges.forEach(edge => {
+                const src = nodeCoords[edge.source];
+                const tgt = nodeCoords[edge.target];
+                if (src && tgt) {
+                    ctx.beginPath();
+                    ctx.moveTo(src.x, src.y);
+                    ctx.lineTo(tgt.x, tgt.y);
+                    ctx.stroke();
+                }
+            });
+            
+            data.nodes.forEach(node => {
+                const coord = nodeCoords[node.id];
+                if (!coord) return;
+                
+                ctx.beginPath();
+                if (node.type === "source") {
+                    ctx.arc(coord.x, coord.y, 8, 0, 2 * Math.PI);
+                    ctx.fillStyle = "#3b82f6";
+                } else if (node.type === "ip") {
+                    ctx.arc(coord.x, coord.y, 5, 0, 2 * Math.PI);
+                    ctx.fillStyle = "#ef4444";
+                } else if (node.type === "email") {
+                    ctx.arc(coord.x, coord.y, 5, 0, 2 * Math.PI);
+                    ctx.fillStyle = "#fbbf24";
+                } else {
+                    ctx.arc(coord.x, coord.y, 5, 0, 2 * Math.PI);
+                    ctx.fillStyle = "#ec4899";
+                }
+                ctx.fill();
+                
+                ctx.fillStyle = "#f4f4f5";
+                ctx.font = "8px monospace";
+                ctx.textAlign = "center";
+                ctx.fillText(node.label.substring(0, 15), coord.x, coord.y - 10);
+            });
+        };
+        LiteGraph.registerNodeType("output/relationship_graph", RelationshipGraphNode);
+
+        function TimelineNode() {
+            this.addInput("Text", 0);
+            this.size = [360, 220];
+            this.properties = { timeline_data: null };
+        }
+        TimelineNode.title = "Visual Timeline";
+        TimelineNode.color = "#18181b";
+        TimelineNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.properties.timeline_data = outputs[0];
+            }
+        };
+        TimelineNode.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
+            
+            ctx.fillStyle = "#09090b";
+            ctx.fillRect(10, 25, this.size[0] - 20, this.size[1] - 35);
+            
+            const data = this.properties.timeline_data;
+            if (!data || !data.events || data.events.length === 0) {
+                ctx.fillStyle = "#a1a1aa";
+                ctx.font = "12px var(--font-sans)";
+                ctx.textAlign = "center";
+                ctx.fillText("No timeline dates found", this.size[0] / 2, this.size[1] / 2 + 10);
+                return;
+            }
+            
+            const startX = 50;
+            const startY = 40;
+            const endY = this.size[1] - 30;
+            ctx.strokeStyle = "#3b82f6";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(startX, endY);
+            ctx.stroke();
+            
+            const numEvents = Math.min(data.events.length, 6);
+            const spacing = (endY - startY) / (numEvents + 1);
+            
+            for (let i = 0; i < numEvents; i++) {
+                const ev = data.events[i];
+                const y = startY + (i + 1) * spacing;
+                
+                ctx.fillStyle = "#fbbf24";
+                ctx.beginPath();
+                ctx.arc(startX, y, 6, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                ctx.fillStyle = "#34d399";
+                ctx.font = "bold 9px monospace";
+                ctx.textAlign = "right";
+                ctx.fillText(ev.date, startX - 12, y + 3);
+                
+                ctx.fillStyle = "#f4f4f5";
+                ctx.font = "8px var(--font-sans)";
+                ctx.textAlign = "left";
+                const desc = ev.description.length > 35 ? ev.description.substring(0, 35) + "..." : ev.description;
+                ctx.fillText(desc, startX + 12, y + 3);
+            }
+        };
+        LiteGraph.registerNodeType("output/timeline", TimelineNode);
+
+        // == 4.3 Webhooks & Automation ==
+        function WebhookNode() {
+            this.addInput("Data", 0);
+            this.properties = { url: "" };
+            this.size = [240, 70];
+            
+            this.addWidget("text", "URL", this.properties.url, (v) => { this.properties.url = v; });
+        }
+        WebhookNode.title = "Send Webhook";
+        WebhookNode.color = "#450a0a";
+        WebhookNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                this.backend_output = outputs[0];
+            }
+        };
+        LiteGraph.registerNodeType("output/webhook", WebhookNode);
+
+        // == 5. Output & Preview Nodes ==
+        function ResultsViewerNode() {
+            this.addInput("Results", "search_results");
+            this.size = [400, 250];
+            this.properties = { results: [] };
+        }
+        ResultsViewerNode.title = "Results Viewer";
+        ResultsViewerNode.color = "#18181b";
+        ResultsViewerNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                const data = outputs[0];
+                let list = [];
+                if (data && Array.isArray(data.results)) {
+                    list = data.results.map((url, idx) => {
+                        if (data.raw_results && data.raw_results[idx]) {
+                            const raw = data.raw_results[idx];
+                            return {
+                                title: raw.title || "Search Result",
+                                url: raw.url || url,
+                                snippet: raw.snippet || raw.content || "No description available."
+                            };
+                        }
+                        return {
+                            title: url,
+                            url: url,
+                            snippet: "Direct URL link extracted."
+                        };
+                    });
+                }
+                this.properties.results = list;
+            }
+        };
+        ResultsViewerNode.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
+            
+            ctx.fillStyle = "#09090b";
+            ctx.fillRect(10, 25, this.size[0] - 20, this.size[1] - 35);
+            
+            const list = this.properties.results || [];
+            if (list.length === 0) {
+                ctx.fillStyle = "#a1a1aa";
+                ctx.font = "12px var(--font-sans)";
+                ctx.textAlign = "center";
+                ctx.fillText("No search results to display", this.size[0] / 2, this.size[1] / 2 + 10);
+                return;
+            }
+            
+            const startY = 30;
+            const itemHeight = 65;
+            const spacing = 10;
+            const renderCount = Math.min(list.length, 3);
+            
+            for (let i = 0; i < renderCount; i++) {
+                const item = list[i];
+                const y = startY + i * (itemHeight + spacing);
+                
+                ctx.strokeStyle = "#3f3f46";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(15, y, this.size[0] - 30, itemHeight);
+                
+                ctx.fillStyle = "#10b981";
+                ctx.font = "bold 11px var(--font-sans)";
+                ctx.textAlign = "left";
+                const titleStr = item.title.length > 55 ? item.title.substring(0, 52) + "..." : item.title;
+                ctx.fillText(titleStr, 25, y + 18);
+                
+                ctx.fillStyle = "#a1a1aa";
+                ctx.font = "9px var(--font-sans)";
+                const snippetStr = item.snippet.length > 65 ? item.snippet.substring(0, 62) + "..." : item.snippet;
+                ctx.fillText(snippetStr, 25, y + 34);
+                
+                ctx.fillStyle = "#3b82f6";
+                ctx.font = "underline 9px var(--font-sans)";
+                const urlStr = item.url.length > 60 ? item.url.substring(0, 57) + "..." : item.url;
+                ctx.fillText(urlStr, 25, y + 50);
+            }
+        };
+        ResultsViewerNode.prototype.onMouseDown = function(event, pos, canvas) {
+            const list = this.properties.results || [];
+            if (list.length === 0) return;
+            
+            const startY = 30;
+            const itemHeight = 65;
+            const spacing = 10;
+            const renderCount = Math.min(list.length, 3);
+            
+            const x = pos[0];
+            const y = pos[1];
+            
+            if (x >= 15 && x <= this.size[0] - 15) {
+                for (let i = 0; i < renderCount; i++) {
+                    const itemY = startY + i * (itemHeight + spacing);
+                    if (y >= itemY && y <= itemY + itemHeight) {
+                        const url = list[i].url;
+                        if (url && url.startsWith("http")) {
+                            window.open(url, "_blank");
+                            return true;
+                        }
+                    }
+                }
+            }
+        };
+        LiteGraph.registerNodeType("output/results_viewer", ResultsViewerNode);
+
+        function PreviewNode() {
+            this.addInput("Image", "image");
+            this.size = [220, 220];
+            this.properties = {};
+            this._image_obj = null;
+            this._image_url = null;
+        }
+        PreviewNode.title = "Image Preview";
+        PreviewNode.color = "#18181b"; // matching frame
+        PreviewNode.prototype.onExecute = function() {
+            const input = this.getInputData(0);
+            if (input && input.url) {
+                const url = input.url;
+                if (this._image_url !== url) {
+                    this._image_url = url;
+                    this._image_obj = new Image();
+                    this._image_obj.src = url.startsWith("/") ? window.location.origin + url : url;
+                    this._image_obj.onload = () => {
+                        this.setDirtyCanvas(true, true);
+                    };
+                }
+            } else {
+                this._image_obj = null;
+                this._image_url = null;
+            }
+        };
+        PreviewNode.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
+            
+            if (this._image_obj && this._image_obj.complete && this._image_obj.naturalWidth !== 0) {
+                const margin = 10;
+                const x = margin;
+                const y = margin + 15;
+                const w = this.size[0] - margin * 2;
+                const h = this.size[1] - margin * 2 - 25;
+                
+                const imgW = this._image_obj.width;
+                const imgH = this._image_obj.height;
+                const ratio = Math.min(w / imgW, h / imgH);
+                
+                const drawW = imgW * ratio;
+                const drawH = imgH * ratio;
+                const drawX = x + (w - drawW) / 2;
+                const drawY = y + (h - drawH) / 2;
+                
+                ctx.fillStyle = "#09090b";
+                ctx.fillRect(drawX - 2, drawY - 2, drawW + 4, drawH + 4);
+                
+                ctx.drawImage(this._image_obj, drawX, drawY, drawW, drawH);
+            } else {
+                ctx.fillStyle = "#3f3f46";
+                ctx.fillRect(10, 25, this.size[0] - 20, this.size[1] - 35);
+                ctx.fillStyle = "#a1a1aa";
+                ctx.font = "12px var(--font-sans)";
+                ctx.textAlign = "center";
+                ctx.fillText("No Image Loaded", this.size[0] / 2, this.size[1] / 2 + 10);
+            }
+        };
+        LiteGraph.registerNodeType("output/preview", PreviewNode);
+
+        function OutputDisplayNode() { 
+            this.addInput("Data", 0); 
+            this.size = [300, 140];
+            this.properties = { value: "" };
+        }
+        OutputDisplayNode.title = "Final Output";
+        OutputDisplayNode.color = "#450a0a"; // dark red
+        OutputDisplayNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) {
+                let text = "";
+                let data = outputs[0];
+                if (typeof data === "object") {
+                    text = JSON.stringify(data, null, 2);
+                } else {
+                    text = String(data);
+                }
+                this.properties.value = text;
+            }
+        };
+        OutputDisplayNode.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
+            
+            ctx.fillStyle = "#09090b";
+            ctx.fillRect(10, 25, this.size[0] - 20, this.size[1] - 35);
+            
+            ctx.fillStyle = "#34d399"; // emerald
+            ctx.font = "10px var(--font-mono)";
+            
+            const text = this.properties.value || "Waiting for execution results...";
+            const lines = text.split("\n");
+            let y = 40;
+            for (let i = 0; i < lines.length; i++) {
+                if (y > this.size[1] - 15) break;
+                ctx.fillText(lines[i], 16, y);
+                y += 13;
+            }
+        };
+        LiteGraph.registerNodeType("output/display", OutputDisplayNode);
+
+        PlaceholderNode.prototype.onRegister = function() { this.addInput("Data", 0); };
+        PlaceholderNode.title = "Output: Webhook";
+        PlaceholderNode.color = "#450a0a";
+        LiteGraph.registerNodeType("output/webhook", PlaceholderNode);
+
+        // ═══════════════════════════════════════════════════════════════
+        // UTILITY NODES — Note, Text, Number, Seed
+        // ═══════════════════════════════════════════════════════════════
+
+        // ── Note (sticky comment, no I/O) ────────────────────────────
+        function NoteNode() {
+            this.properties = { text: "Double-click to edit…", font_size: 14 };
+            this.size = [220, 80];
+            this.color = "#1a150a";
+            this.bgcolor = "transparent";
+            this.resizable = true;
+        }
+        NoteNode.title = "📝 Note";
+        NoteNode.prototype.onDrawBackground = function(ctx) {
+            // Warm yellow card
+            ctx.save();
+            ctx.fillStyle = "rgba(253,224,71,0.10)";
+            ctx.strokeStyle = "rgba(253,224,71,0.35)";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.roundRect(0, 0, this.size[0], this.size[1], 6);
+            ctx.fill();
+            ctx.stroke();
+
+            const text = this.properties.text || "";
+            const fs   = Math.max(10, Math.min(22, this.properties.font_size || 14));
+            ctx.fillStyle = "#fef08a";
+            ctx.font = `${fs}px sans-serif`;
+            ctx.textBaseline = "top";
+            const pad = 10, lh = fs + 4, maxW = this.size[0] - pad * 2;
+            let y = 6;
+            text.split("\n").forEach(line => {
+                // simple word-wrap
+                const words = line.split(" ");
+                let row = "";
+                words.forEach(w => {
+                    const test = row ? row + " " + w : w;
+                    if (ctx.measureText(test).width > maxW && row) {
+                        ctx.fillText(row, pad, y);
+                        y += lh;
+                        row = w;
+                    } else { row = test; }
+                });
+                if (row) { ctx.fillText(row, pad, y); y += lh; }
+            });
+            ctx.restore();
+        };
+        NoteNode.prototype.onDblClick = function(e) {
+            const text = prompt("Edit note:", this.properties.text || "");
+            if (text !== null) {
+                this.properties.text = text;
+                this.setDirtyCanvas(true);
+            }
+        };
+        LiteGraph.registerNodeType("utility/note", NoteNode);
+
+        // ── Text constant ────────────────────────────────────────────
+        function TextConstantNode() {
+            this.addOutput("Text", "string");
+            this.properties = { text: "" };
+            this.size = [220, 55];
+            this.color = "#1e293b";
+            this.addWidget("text", "Value", this.properties.text, (v) => { this.properties.text = v; });
+        }
+        TextConstantNode.title = "Text";
+        TextConstantNode.prototype.onExecute = function() {
+            this.setOutputData(0, this.properties.text);
+        };
+        TextConstantNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0] !== undefined) this.setOutputData(0, outputs[0]);
+        };
+        LiteGraph.registerNodeType("utility/text", TextConstantNode);
+
+        // ── Number constant ──────────────────────────────────────────
+        function NumberConstantNode() {
+            this.addOutput("Value", "number");
+            this.properties = { value: 0 };
+            this.size = [200, 55];
+            this.color = "#1e293b";
+            this.addWidget("number", "Value", this.properties.value,
+                (v) => { this.properties.value = v; }, { min: -1e9, max: 1e9, step: 1, precision: 4 });
+        }
+        NumberConstantNode.title = "Number";
+        NumberConstantNode.prototype.onExecute = function() {
+            this.setOutputData(0, this.properties.value);
+        };
+        NumberConstantNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0] !== undefined) this.setOutputData(0, outputs[0]);
+        };
+        LiteGraph.registerNodeType("utility/number", NumberConstantNode);
+
+        // ── Seed Generator ───────────────────────────────────────────
+        function SeedNode() {
+            this.addOutput("Seed (int)",  "number");
+            this.addOutput("Seed (str)",  "string");
+            this.addOutput("UUID",        "string");
+            this.properties = { mode: "random", seed_value: 0 };
+            this.size = [230, 120];
+            this.color = "#0f2744";
+            this._last_seed = null;
+
+            this.addWidget("combo", "Mode", this.properties.mode,
+                (v) => { this.properties.mode = v; this.setDirtyCanvas(true); },
+                { values: ["random", "fixed"] });
+            this.addWidget("number", "Fixed Seed", this.properties.seed_value,
+                (v) => { this.properties.seed_value = Math.round(v); },
+                { min: 0, max: 2147483647, step: 1, precision: 0 });
+            this.addWidget("button", "🎲 Randomise", null, () => {
+                this.properties.seed_value = Math.floor(Math.random() * 2147483648);
+                this._last_seed = this.properties.seed_value;
+                // Update the number widget display
+                if (this.widgets[1]) this.widgets[1].value = this.properties.seed_value;
+                this.setDirtyCanvas(true);
+            });
+        }
+        SeedNode.title = "Seed Generator";
+        SeedNode.prototype.onDrawForeground = function(ctx) {
+            if (this._last_seed === null) return;
+            ctx.save();
+            ctx.fillStyle = "rgba(59,130,246,0.15)";
+            ctx.beginPath();
+            ctx.roundRect(8, this.size[1] - 20, this.size[0] - 16, 14, 4);
+            ctx.fill();
+            ctx.fillStyle = "#93c5fd";
+            ctx.font = "10px monospace";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("seed: " + this._last_seed, this.size[0] / 2, this.size[1] - 13);
+            ctx.restore();
+        };
+        SeedNode.prototype.onExecute = function() {
+            const seed = this.properties.mode === "fixed"
+                ? this.properties.seed_value
+                : Math.floor(Math.random() * 2147483648);
+            this._last_seed = seed;
+            this.setOutputData(0, seed);
+            this.setOutputData(1, String(seed));
+            // Simple deterministic UUID-like string from seed
+            const hex = seed.toString(16).padStart(8, "0");
+            this.setOutputData(2, `${hex}-${hex}-4${hex.slice(1)}-a${hex.slice(2)}-${hex}${hex}`);
+        };
+        SeedNode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs) {
+                if (outputs[0] !== undefined) { this._last_seed = outputs[0]; this.setOutputData(0, outputs[0]); }
+                if (outputs[1] !== undefined) this.setOutputData(1, outputs[1]);
+                if (outputs[2] !== undefined) this.setOutputData(2, outputs[2]);
+                this.setDirtyCanvas(true);
+            }
+        };
+        LiteGraph.registerNodeType("utility/seed", SeedNode);
+
+        // ═══════════════════════════════════════════════════════════════
+        // CUSTOM API SEARCH NODE (with → Enter Subgraph button)
+        // ═══════════════════════════════════════════════════════════════
+        function CustomAPINode() {
+            this.addInput("Query / Image", 0);
+            this.addOutput("Results", "search_results");
+            this.properties = {
+                name: "My API",
+                method: "GET",
+                url: "https://api.example.com/search?q={{query}}",
+                headers_json: "{}",
+                body_template: "",
+                regex_pattern: "",
+                auth_type: "None",
+                auth_value: "",
+                subgraph_config: null
+            };
+            this.size = [260, 170];
+            this.color = "#0f2744";
+            this.addWidget("text",  "Name",   this.properties.name,   (v) => { this.properties.name = v; });
+            this.addWidget("combo", "Method", this.properties.method, (v) => { this.properties.method = v; },
+                           { values: ["GET","POST","PUT","PATCH","DELETE"] });
+            this.addWidget("text",  "URL",    this.properties.url,    (v) => { this.properties.url = v; });
+            this.addWidget("combo", "Auth",   this.properties.auth_type, (v) => { this.properties.auth_type = v; },
+                           { values: ["None","Bearer","Basic","API Key Header"] });
+            this.addWidget("text",  "Auth Value", this.properties.auth_value, (v) => { this.properties.auth_value = v; });
+            this._subgraph_btn_y = 0;
+        }
+        CustomAPINode.title = "Custom API Search";
+        CustomAPINode.prototype.onDrawForeground = function(ctx) {
+            // Draw the "→ Enter Subgraph" button at the bottom of the node
+            const bh = 26, bw = this.size[0] - 20, bx = 10;
+            const by = this.size[1] - bh - 8;
+            this._subgraph_btn_y = by;
+            const hasConfig = !!(this.properties.subgraph_config && this.properties.subgraph_config.nodes && this.properties.subgraph_config.nodes.length);
+            ctx.save();
+            ctx.fillStyle = hasConfig ? "rgba(16,185,129,0.18)" : "rgba(30,58,95,0.5)";
+            ctx.strokeStyle = hasConfig ? "#10b981" : "#3b82f6";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(bx, by, bw, bh, 5);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = hasConfig ? "#10b981" : "#7dd3fc";
+            ctx.font = "bold 11px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            const label = hasConfig ? "✓ Subgraph Configured  →" : "→  Enter Subgraph";
+            ctx.fillText(label, bx + bw / 2, by + bh / 2);
+            ctx.restore();
+        };
+        CustomAPINode.prototype.onMouseDown = function(e, localPos) {
+            if (!this._subgraph_btn_y) return false;
+            const bh = 26, bw = this.size[0] - 20, bx = 10, by = this._subgraph_btn_y;
+            if (localPos[0] >= bx && localPos[0] <= bx + bw &&
+                localPos[1] >= by && localPos[1] <= by + bh) {
+                openSubgraphEditor(this);
+                return true; // consume the event
+            }
+            return false;
+        };
+        CustomAPINode.prototype.onBackendExecuted = function(outputs) {
+            if (outputs && outputs[0]) this.backend_output = outputs[0];
+        };
+        CustomAPINode.prototype.onExecute = function() {
+            if (this.backend_output) this.setOutputData(0, this.backend_output);
+        };
+        LiteGraph.registerNodeType("search/custom_api", CustomAPINode);
+
+        // ═══════════════════════════════════════════════════════════════
+        // SUBGRAPH UTILITY NODES (only shown inside the subgraph editor)
+        // ═══════════════════════════════════════════════════════════════
+        const SUBGRAPH_NODE_DEFS = [
+            {
+                type: "subgraph/input", title: "SG: Query Input", color: "#064e3b",
+                outputs: [["Query", "string"], ["Image URL", "string"]],
+                props: { preview_query: "test search", preview_image_url: "" },
+                widgets: [
+                    { kind: "text", label: "Preview Query", prop: "preview_query" },
+                    { kind: "text", label: "Preview Image URL", prop: "preview_image_url" }
+                ]
+            },
+            {
+                type: "subgraph/http_request", title: "SG: HTTP Request", color: "#1e3a5f",
+                inputs: [["Query", "string"], ["Headers", "headers"]],
+                outputs: [["Response Text", "string"], ["Status", "number"], ["Resp Headers", "headers"]],
+                props: { method: "GET", url: "https://api.example.com?q={{query}}", headers_json: "{}", body_template: "" },
+                widgets: [
+                    { kind: "combo", label: "Method", prop: "method", values: ["GET","POST","PUT","PATCH","DELETE"] },
+                    { kind: "text",  label: "URL ({{query}} / {{image_url}})", prop: "url" },
+                    { kind: "text",  label: "Headers JSON", prop: "headers_json" },
+                    { kind: "text",  label: "Body Template", prop: "body_template" }
+                ]
+            },
+            {
+                type: "subgraph/regex_extract", title: "SG: Regex Extract", color: "#4a1942",
+                inputs: [["Text", "string"]],
+                outputs: [["Matches", "list"], ["Count", "number"]],
+                props: { pattern: "(https?://[^\\s\"'<>]+)", ignore_case: true, multiline: true },
+                widgets: [
+                    { kind: "text",   label: "Pattern", prop: "pattern" }
+                ]
+            },
+            {
+                type: "subgraph/json_path", title: "SG: JSON Path", color: "#713f12",
+                inputs: [["JSON / Text", "string"]],
+                outputs: [["Value", 0]],
+                props: { path: "results.0.url" },
+                widgets: [
+                    { kind: "text", label: "Dot Path (e.g. results.0.url)", prop: "path" }
+                ]
+            },
+            {
+                type: "subgraph/auth_injector", title: "SG: Auth Injector", color: "#422006",
+                inputs: [["Headers In", "headers"]],
+                outputs: [["Headers + Auth", "headers"]],
+                props: { auth_type: "Bearer", auth_value: "", vault_key: "" },
+                widgets: [
+                    { kind: "combo", label: "Auth Type", prop: "auth_type", values: ["Bearer","Basic","API Key Header"] },
+                    { kind: "text",  label: "Auth Value / Key:Value", prop: "auth_value" },
+                    { kind: "text",  label: "Vault Key (overrides above)", prop: "vault_key" }
+                ]
+            },
+            {
+                type: "subgraph/format_results", title: "SG: Format Results", color: "#1c1917",
+                inputs: [["Titles", "list"], ["URLs", "list"], ["Snippets", "list"]],
+                outputs: [["Results", "search_results"]],
+                props: { label: "Custom API" },
+                widgets: [
+                    { kind: "text", label: "Label", prop: "label" }
+                ]
+            },
+            {
+                type: "subgraph/output", title: "SG: Results Output", color: "#450a0a",
+                inputs: [["Results", "search_results"]],
+                outputs: [],
+                props: {}, widgets: []
+            }
+        ];
+
+        // Register each subgraph node type
+        SUBGRAPH_NODE_DEFS.forEach(def => {
+            function SGNode() {
+                const d = SGNode._def;
+                (d.inputs  || []).forEach(([n, t]) => this.addInput(n, t));
+                (d.outputs || []).forEach(([n, t]) => this.addOutput(n, t));
+                this.properties = Object.assign({}, d.props || {});
+                this.size = [240, 80 + (d.widgets || []).length * 28];
+                (d.widgets || []).forEach(w => {
+                    if (w.kind === "combo") {
+                        this.addWidget("combo", w.label, this.properties[w.prop], (v) => { this.properties[w.prop] = v; }, { values: w.values });
+                    } else {
+                        this.addWidget("text", w.label, this.properties[w.prop], (v) => { this.properties[w.prop] = v; });
+                    }
+                });
+                this.backend_output = null;
+            }
+            SGNode._def = def;
+            SGNode.title = def.title;
+            SGNode.color = def.color;
+            SGNode.prototype.onBackendExecuted = function(outputs) {
+                if (outputs && outputs[0] !== undefined) this.backend_output = outputs[0];
+            };
+            SGNode.prototype.onExecute = function() {
+                if (this.backend_output !== null) this.setOutputData(0, this.backend_output);
+            };
+            LiteGraph.registerNodeType(def.type, SGNode);
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // SUBGRAPH EDITOR — Open / Close / Save
+        // ═══════════════════════════════════════════════════════════════
+        let _sgParentNode = null;
+        let _sgGraph = null;
+        let _sgCanvas = null;
+
+        function openSubgraphEditor(parentNode) {
+            _sgParentNode = parentNode;
+
+            const overlay = document.getElementById("subgraph-overlay");
+            const nameEl  = document.getElementById("subgraph-breadcrumb-name");
+            nameEl.textContent = parentNode.properties.name || "Custom API";
+
+            overlay.classList.add("open");
+
+            // Init sub-canvas (lazy)
+            if (!_sgCanvas) {
+                _sgGraph  = new LGraph();
+                _sgCanvas = new LGraphCanvas("#subgraph-canvas", _sgGraph);
+                _sgCanvas.background_image = null;
+                LGraphCanvas.link_type_colors = {
+                    "string": "#7dd3fc", "list": "#a78bfa", "search_results": "#f59e0b",
+                    "headers": "#fb923c", "number": "#34d399"
+                };
+            }
+
+            // Load existing subgraph_config or start with default template
+            const cfg = parentNode.properties.subgraph_config;
+            if (cfg && cfg.nodes && cfg.nodes.length) {
+                _sgGraph.configure(cfg);
+            } else {
+                _sgGraph.clear();
+                // Add default starter nodes
+                const inputN = LiteGraph.createNode("subgraph/input");
+                inputN.pos = [60, 180];
+                _sgGraph.add(inputN);
+
+                const httpN = LiteGraph.createNode("subgraph/http_request");
+                httpN.pos = [340, 150];
+                _sgGraph.add(httpN);
+
+                const outN = LiteGraph.createNode("subgraph/output");
+                outN.pos = [700, 180];
+                _sgGraph.add(outN);
+
+                // Wire: input.Query → http.Query
+                inputN.connect(0, httpN, 0);
+            }
+
+            // Populate subgraph sidebar
+            buildSubgraphSidebar();
+
+            // Size the sub-canvas
+            setTimeout(() => {
+                const area = document.querySelector(".subgraph-canvas-area");
+                if (area && _sgCanvas) {
+                    const r = area.getBoundingClientRect();
+                    _sgCanvas.resize(r.width, r.height);
+                }
+                _sgGraph.start();
+            }, 80);
+        }
+
+        function buildSubgraphSidebar() {
+            const sb = document.getElementById("subgraph-sidebar");
+            sb.innerHTML = '<div class="subgraph-sidebar-title">Subgraph Nodes</div>';
+            const emojis = {
+                "subgraph/input": "🔵",
+                "subgraph/http_request": "🌐",
+                "subgraph/regex_extract": "🔍",
+                "subgraph/json_path": "📦",
+                "subgraph/auth_injector": "🔑",
+                "subgraph/format_results": "📋",
+                "subgraph/output": "🔴"
+            };
+            SUBGRAPH_NODE_DEFS.forEach(def => {
+                const el = document.createElement("div");
+                el.className = "subgraph-node-item";
+                el.innerHTML = `<span>${emojis[def.type] || "⬡"}</span><span>${def.title}</span>`;
+                el.addEventListener("click", () => {
+                    if (!_sgGraph || !_sgCanvas) return;
+                    const node = LiteGraph.createNode(def.type);
+                    if (!node) return;
+                    const cx = _sgCanvas.canvas.width  / 2;
+                    const cy = _sgCanvas.canvas.height / 2;
+                    node.pos = [
+                        (-_sgCanvas.ds.offset[0] + cx) / _sgCanvas.ds.scale - node.size[0] / 2,
+                        (-_sgCanvas.ds.offset[1] + cy) / _sgCanvas.ds.scale - node.size[1] / 2
+                    ];
+                    _sgGraph.add(node);
+                    _sgCanvas.setDirty(true, true);
+                });
+                sb.appendChild(el);
+            });
+        }
+
+        function closeSubgraphEditor(save) {
+            if (save && _sgParentNode && _sgGraph) {
+                _sgParentNode.properties.subgraph_config = _sgGraph.serialize();
+                _sgParentNode.setDirtyCanvas(true, true);
+                scheduleAutosave();
+            }
+            if (_sgGraph) _sgGraph.stop();
+            document.getElementById("subgraph-overlay").classList.remove("open");
+            _sgParentNode = null;
+        }
+
+        document.getElementById("subgraph-save-btn").addEventListener("click",   () => closeSubgraphEditor(true));
+        document.getElementById("subgraph-cancel-btn").addEventListener("click", () => closeSubgraphEditor(false));
+
+        // Resize subgraph canvas when window resizes
+        window.addEventListener("resize", () => {
+            if (_sgCanvas && document.getElementById("subgraph-overlay").classList.contains("open")) {
+                const area = document.querySelector(".subgraph-canvas-area");
+                if (area) {
+                    const r = area.getBoundingClientRect();
+                    _sgCanvas.resize(r.width, r.height);
+                }
+            }
+        });
+
+
+
+        function populateSidebar() {
+            const container = document.getElementById("nodes-container");
+            const categories = {};
+
+            // Group nodes by their path (e.g., 'input', 'process')
+            // Exclude subgraph/* types — they live only in the subgraph editor
+            for (let nodeType in LiteGraph.registered_node_types) {
+                if (nodeType.startsWith("subgraph/")) continue;
+                let cat = nodeType.split("/")[0];
+                if (!categories[cat]) categories[cat] = [];
+                categories[cat].push(nodeType);
+            }
+
+
+            // Render categories and items
+            for (let cat in categories) {
+                let catDiv = document.createElement("div");
+                catDiv.className = "node-category";
+                catDiv.innerText = cat;
+                container.appendChild(catDiv);
+
+                categories[cat].forEach(nodeType => {
+                    let item = document.createElement("div");
+                    item.className = "node-item";
+                    let title = LiteGraph.registered_node_types[nodeType].title || nodeType;
+                    item.innerText = title;
+
+                    // Click to spawn node on canvas
+                    item.onclick = function() {
+                        var node = LiteGraph.createNode(nodeType);
+                        if (!node) { console.warn("Could not create node:", nodeType); return; }
+                        var cx = canvas.canvas.width / 2;
+                        var cy = canvas.canvas.height / 2;
+                        node.pos = [
+                            (-canvas.ds.offset[0] + cx) / canvas.ds.scale - node.size[0] / 2,
+                            (-canvas.ds.offset[1] + cy) / canvas.ds.scale - node.size[1] / 2
+                        ];
+                        graph.add(node);
+                        canvas.setDirty(true, true);
+                    };
+                    container.appendChild(item);
+                });
+            }
+        }
+        populateSidebar();
+
+        // --- Multi-Tab Workflow & Autosaver ---
+        let workflowState = {
+            activeTabId: "tab-1",
+            tabs: [
+                {
+                    id: "tab-1",
+                    name: "OSINT Workflow 1",
+                    graph: null
+                }
+            ]
+        };
+
+        let autosaveTimeout = null;
+        function scheduleAutosave() {
+            if (autosaveTimeout) clearTimeout(autosaveTimeout);
+            autosaveTimeout = setTimeout(saveCurrentGraphState, 800); // 800ms debounce
+        }
+
+        function saveWorkflowState() {
+            localStorage.setItem("searchui_workflows", JSON.stringify(workflowState));
+        }
+
+        function saveCurrentGraphState() {
+            const activeTab = workflowState.tabs.find(t => t.id === workflowState.activeTabId);
+            if (activeTab) {
+                activeTab.graph = graph.serialize();
+                saveWorkflowState();
+            }
+        }
+
+        function loadActiveTabGraph() {
+            const activeTab = workflowState.tabs.find(t => t.id === workflowState.activeTabId);
+            if (activeTab && activeTab.graph) {
+                graph.configure(activeTab.graph);
+            } else {
+                graph.clear();
+                const defaultNode = LiteGraph.createNode("input/image");
+                if (defaultNode) {
+                    defaultNode.pos = [100, 150];
+                    graph.add(defaultNode);
+                }
+            }
+            scheduleAutosave();
+        }
+
+        function renderTabs() {
+            const tabBar = document.getElementById("tab-bar");
+            if (!tabBar) return;
+            tabBar.innerHTML = "";
+            
+            workflowState.tabs.forEach(tab => {
+                const tabEl = document.createElement("div");
+                tabEl.className = `tab-item ${tab.id === workflowState.activeTabId ? 'active' : ''}`;
+                tabEl.dataset.id = tab.id;
+                
+                const nameEl = document.createElement("span");
+                nameEl.className = "tab-name";
+                nameEl.textContent = tab.name;
+                
+                tabEl.addEventListener("dblclick", () => {
+                    const newName = prompt("Rename workflow:", tab.name);
+                    if (newName && newName.trim()) {
+                        tab.name = newName.trim();
+                        nameEl.textContent = tab.name;
+                        saveWorkflowState();
+                    }
+                });
+                
+                tabEl.appendChild(nameEl);
+                
+                if (workflowState.tabs.length > 1) {
+                    const closeEl = document.createElement("span");
+                    closeEl.className = "tab-close";
+                    closeEl.innerHTML = "×";
+                    closeEl.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        deleteTab(tab.id);
+                    });
+                    tabEl.appendChild(closeEl);
+                }
+                
+                tabEl.addEventListener("click", () => {
+                    if (tab.id !== workflowState.activeTabId) {
+                        saveCurrentGraphState();
+                        workflowState.activeTabId = tab.id;
+                        saveWorkflowState();
+                        renderTabs();
+                        loadActiveTabGraph();
+                    }
+                });
+                
+                tabBar.appendChild(tabEl);
+            });
+            
+            const addBtn = document.createElement("div");
+            addBtn.className = "btn-add-tab";
+            addBtn.innerHTML = "+";
+            addBtn.title = "Create New Workflow";
+            addBtn.addEventListener("click", createNewTab);
+            tabBar.appendChild(addBtn);
+        }
+
+        function createNewTab() {
+            saveCurrentGraphState();
+            const newId = "tab-" + Date.now();
+            const newTab = {
+                id: newId,
+                name: "OSINT Workflow " + (workflowState.tabs.length + 1),
+                graph: null
+            };
+            workflowState.tabs.push(newTab);
+            workflowState.activeTabId = newId;
+            saveWorkflowState();
+            renderTabs();
+            loadActiveTabGraph();
+        }
+
+        function deleteTab(tabId) {
+            if (confirm("Are you sure you want to delete this workflow tab?")) {
+                const idx = workflowState.tabs.findIndex(t => t.id === tabId);
+                if (idx !== -1) {
+                    workflowState.tabs.splice(idx, 1);
+                    if (workflowState.activeTabId === tabId) {
+                        workflowState.activeTabId = workflowState.tabs[Math.max(0, idx - 1)].id;
+                    }
+                    saveWorkflowState();
+                    renderTabs();
+                    loadActiveTabGraph();
+                }
+            }
+        }
+
+        function loadWorkflowState() {
+            const saved = localStorage.getItem("searchui_workflows");
+            let loadedSuccessfully = false;
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0 && parsed.activeTabId) {
+                        workflowState = parsed;
+                        loadedSuccessfully = true;
+                    }
+                } catch (e) {
+                    console.error("Failed to load workflows:", e);
+                }
+            }
+            
+            if (!loadedSuccessfully) {
+                workflowState = {
+                    activeTabId: "tab-1",
+                    tabs: [
+                        {
+                            id: "tab-1",
+                            name: "OSINT Workflow 1",
+                            graph: null
+                        }
+                    ]
+                };
+                
+                graph.clear();
+                var n_img = LiteGraph.createNode("input/image");
+                n_img.pos = [80, 100];
+                graph.add(n_img);
+
+                var n_preview = LiteGraph.createNode("output/preview");
+                n_preview.pos = [80, 240];
+                graph.add(n_preview);
+
+                var n_hash = LiteGraph.createNode("process/hash");
+                n_hash.pos = [380, 150];
+                graph.add(n_hash);
+
+                var n_search = LiteGraph.createNode("search/mock");
+                n_search.pos = [640, 150];
+                graph.add(n_search);
+
+                var n_out = LiteGraph.createNode("output/display");
+                n_out.pos = [900, 130];
+                graph.add(n_out);
+
+                n_img.connect(0, n_preview, 0);
+                n_img.connect(0, n_hash, 0);
+                n_hash.connect(0, n_search, 0);
+                n_search.connect(0, n_out, 0);
+                
+                workflowState.tabs[0].graph = graph.serialize();
+                saveWorkflowState();
+            }
+            renderTabs();
+            loadActiveTabGraph();
+        }
+
+        graph.onNodeAdded = scheduleAutosave;
+        graph.onNodeRemoved = scheduleAutosave;
+        graph.onConnectionChange = scheduleAutosave;
+        canvas.canvas.addEventListener("mouseup", scheduleAutosave);
+        
+        loadWorkflowState();
+        graph.start();
+
+        // --- WebSocket & Execution ---
+        const ws_url = (window.location.protocol === "https:" ? "wss://" : "ws://") + window.location.host + "/ws";
+        const ws = new WebSocket(ws_url);
+
+        ws.onmessage = function(event) {
+            const resBox = document.getElementById("result-box");
+            try {
+                const response = JSON.parse(event.data);
+                if (response.status === "success") {
+                    resBox.innerHTML = "<pre style='color: #34d399; margin: 0;'>" + JSON.stringify(response.result, null, 2) + "</pre>";
+                    
+                    // Update nodes with backend execution outputs
+                    if (response.node_outputs) {
+                        for (let node_id in response.node_outputs) {
+                            let node = graph.getNodeById(Number(node_id));
+                            if (node) {
+                                let outputs = response.node_outputs[node_id];
+                                node.backend_outputs = outputs;
+                                if (node.onBackendExecuted) {
+                                    node.onBackendExecuted(outputs);
+                                }
+                            }
+                        }
+                        canvas.draw(true, true);
+                    }
+                } else if (response.status === "pending") {
+                    resBox.innerHTML = `<span style='color: #fbbf24; font-weight: 500;'>⚡ ${response.message}</span>`;
+                } else {
+                    resBox.innerHTML = "<span style='color: #ef4444;'>Error: " + response.message + "</span>";
+                }
+            } catch (e) {
+                console.error("WebSocket message parsing error:", e);
+                resBox.innerHTML = "<span style='color: #ef4444;'>Error parsing backend response.</span>";
+            }
+        };
+
+        document.getElementById("executeBtn").addEventListener("click", function() {
+            document.getElementById("result-box").innerText = "Running backend pipeline...";
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(graph.serialize()));
+            } else {
+                alert("Backend disconnected. Try refreshing the page.");
+            }
+        });
+    </script>
+</body>
+</html>

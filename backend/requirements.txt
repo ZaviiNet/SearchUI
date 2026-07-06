@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+websockets
+wsproto
+pydantic
+requests
+opencv-python
+pypdf
+duckduckgo_search
+pillow
+celery
+sqlalchemy
+cryptography
+beautifulsoup4

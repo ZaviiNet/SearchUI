@@ -35,8 +35,8 @@ SearchUI/
 
 ```
 
-🛠️ Prerequisites
-Python 3.8+
+# 🛠️ Prerequisites
+## Python 3.8+
 
 A message broker for Celery (e.g., Redis or RabbitMQ)
 
@@ -45,16 +45,14 @@ A message broker for Celery (e.g., Redis or RabbitMQ)
 # ⚙️ Installation & Setup
 ## Clone the repository:
 
-Bash
-```
+```text
 git clone <your-repo-url>
 cd SearchUI
 Set up the Python backend:
 Navigate to the backend directory and install the required dependencies.
 ```
 
-Bash
-```
+```text
 cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -67,35 +65,30 @@ pip install -r requirements.txt
 ## Run the Celery Worker:
 In a new terminal instance, start the Celery worker to handle background tasks.
 
-Bash
-```
+```text
 cd backend
 celery -A celery_app worker --loglevel=info
 Start the Backend Server:
 Run your main application (assuming a standard ASGI/WSGI setup in main.py).
 ```
 
-Bash
-
-```
+```text
 python main.py
 ```
 # Launch the Frontend:
-## Serve the frontend/index.html file using a simple HTTP server or open it directly in your browser.
+Serve the frontend/index.html file using a simple HTTP server or open it directly in your browser.
 
-Bash
-```
+```text
 cd ../frontend
 python -m http.server 8000
 ```
-## Navigate to http://localhost:8000 in your web browser.
+Navigate to http://localhost:8000 in your web browser.
 
 # 🧪 Testing
-## The project includes an extensive test suite broken down into phases. Run the tests from the backend directory:
+The project includes an extensive test suite broken down into phases. Run the tests from the backend directory:
 
-Bash
-```
+```text
 pytest test_integration.py test_phase2.py test_phase3.py test_phase4.py test_ws.py
 ```
-# 🧩 Creating Plugins
-## To add a new search plugin, create a new Python file in the backend/plugins/ directory following the structure of example_plugin.py. The plugins_loader.py will automatically detect and integrate it into the search executor.
+ # 🧩 Creating Plugins
+ To add a new search plugin, create a new Python file in the backend/plugins/ directory following the structure of example_plugin.py. The plugins_loader.py will automatically detect and integrate it into the search executor.

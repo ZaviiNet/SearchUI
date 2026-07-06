@@ -60,9 +60,9 @@ pip install -r requirements.txt
 ```
 
 # Configure the environment:
-## Review settings.py and vault.py to configure your environment variables, API keys, and database connections.
+Review settings.py and vault.py to configure your environment variables, API keys, and database connections.
 
-## Run the Celery Worker:
+# Run the Celery Worker:
 In a new terminal instance, start the Celery worker to handle background tasks.
 
 ```text
